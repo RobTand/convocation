@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block main %}
+<div class="section">
+    <div class="section-header">
+        <h1>Welcome</h1>
+    </div>
+    <p style="color:var(--text-muted); margin-bottom:2rem;">{{ site_description }}</p>
+</div>
+
+{% if announcements %}
+<div class="section">
+    <div class="section-header">
+        <h2>Latest Announcements</h2>
+        <a href="/site/announcements/" style="color:var(--accent-light); text-decoration:none; font-size:0.875rem;">View all</a>
+    </div>
+    {% for item in announcements %}
+    <div class="card">
+        <div class="card-title">
+            <a href="/site/announcements/{{ item.slug }}.html">{{ item.metadata.title }}</a>
+            {% if item.metadata.pinned %}<span class="badge">Pinned</span>{% endif %}
+        </div>
+        <div class="card-meta">
+            {{ item.metadata.get('author', 'Unknown') }} &middot; {{ item.metadata.get('created_at', '')[:10] }}
+        </div>
+        <div class="card-body">{{ item.html | safe }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if events %}
+<div class="section">
+    <div class="section-header">
+        <h2>Upcoming Events</h2>
+        <a href="/site/events/" style="color:var(--accent-light); text-decoration:none; font-size:0.875rem;">View all</a>
+    </div>
+    <div class="grid">
+        {% for item in events %}
+        <div class="card">
+            <div class="card-title">
+                <a href="/site/events/{{ item.slug }}.html">{{ item.metadata.title }}</a>
+            </div>
+            <div class="card-meta">
+                {{ item.metadata.get('event_date', '')[:16] }}
+                {% if item.metadata.get('location') %} &middot; {{ item.metadata.location }}{% endif %}
+            </div>
+            <div class="card-body">{{ item.html | safe }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <h2>Settings</h2>
+</div>
+<div class="content">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+        <!-- Invite Users -->
+        <div class="card">
+            <h3 style="font-size:1rem; margin-bottom:1rem;">Invite Users</h3>
+            <form id="invite-form">
+                <div class="form-group">
+                    <label for="invite-email">Email Address</label>
+                    <input type="email" id="invite-email" required placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="invite-role">Role</label>
+                    <select id="invite-role">
+                        <option value="member">Member</option>
+                        <option value="officer">Officer</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Send Invite</button>
+            </form>
+            <div id="invite-result" class="mt-2 hidden">
+                <label>Invite Link (share this):</label>
+                <input type="text" id="invite-url" readonly onclick="this.select()">
+            </div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="card">
+            <h3 style="font-size:1rem; margin-bottom:1rem;">Change Password</h3>
+            <form id="password-form">
+                <div class="form-group">
+                    <label for="current-password">Current Password</label>
+                    <input type="password" id="current-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-password">New Password</label>
+                    <input type="password" id="new-password" required minlength="8">
+                </div>
+                <button type="submit" class="btn btn-primary">Update Password</button>
+            </form>
+        </div>
+
+        <!-- Users List -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h3 style="font-size:1rem; margin-bottom:1rem;">Users</h3>
+            <div id="users-list"><span class="text-muted">Loading...</span></div>
+        </div>
+
+        <!-- Export -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h3 style="font-size:1rem; margin-bottom:1rem;">Site Export</h3>
+            <p class="text-sm text-muted mb-2">
+                Download a complete copy of this site — all content with full history, templates, and deployment configuration.
+                Any officer can use this export to independently redeploy the site.
+            </p>
+            <a href="/api/export/site" class="btn btn-primary">Download Full Export</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Invite form
+    document.getElementById('invite-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const resp = await fetch('/auth/invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: document.getElementById('invite-email').value,
+                role: document.getElementById('invite-role').value,
+            }),
+        });
+
+        if (resp.ok) {
+            const data = await resp.json();
+            document.getElementById('invite-url').value = data.invite_url;
+            document.getElementById('invite-result').classList.remove('hidden');
+            toast('Invite created! Share the link.');
+            document.getElementById('invite-email').value = '';
+        } else {
+            const data = await resp.json();
+            toast(data.detail || 'Failed to create invite', 'error');
+        }
+    });
+
+    // Password form
+    document.getElementById('password-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const resp = await fetch('/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                current_password: document.getElementById('current-password').value,
+                new_password: document.getElementById('new-password').value,
+            }),
+        });
+
+        if (resp.ok) {
+            toast('Password updated');
+            e.target.reset();
+        } else {
+            const data = await resp.json();
+            toast(data.detail || 'Failed to update password', 'error');
+        }
+    });
+
+    // Load users
+    async function loadUsers() {
+        try {
+            const resp = await fetch('/auth/users');
+            if (!resp.ok) return;
+            const users = await resp.json();
+            const el = document.getElementById('users-list');
+
+            el.innerHTML = `
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--border); text-align:left;">
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Name</th>
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Email</th>
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Role</th>
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Status</th>
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Last Login</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(u => `
+                            <tr style="border-bottom:1px solid var(--border);">
+                                <td style="padding:0.5rem; font-size:0.875rem;">${escHtml(u.display_name)}</td>
+                                <td style="padding:0.5rem; font-size:0.8rem; color:var(--text-muted);">${escHtml(u.email)}</td>
+                                <td style="padding:0.5rem;">
+                                    <span style="font-size:0.75rem; padding:0.125rem 0.5rem; border-radius:9999px;
+                                        background:${u.role === 'owner' ? 'var(--primary)' : u.role === 'officer' ? 'var(--warning)' : 'var(--bg-elevated)'};
+                                        color:${u.role === 'member' ? 'var(--text-muted)' : 'white'};">
+                                        ${u.role}
+                                    </span>
+                                </td>
+                                <td style="padding:0.5rem; font-size:0.8rem;">
+                                    ${u.is_active ? '<span style="color:var(--success);">Active</span>' : '<span style="color:var(--danger);">Disabled</span>'}
+                                </td>
+                                <td style="padding:0.5rem; font-size:0.8rem; color:var(--text-muted);">
+                                    ${u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } catch {}
+    }
+
+    loadUsers();
+</script>
+{% endblock %}

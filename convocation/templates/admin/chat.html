@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Chat{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <h2>AI Assistant</h2>
+    <span class="text-sm text-muted">Describe what you want to change</span>
+</div>
+<div class="content" style="display:flex; flex-direction:column; height:calc(100vh - 57px); padding:0;">
+    <!-- Messages -->
+    <div id="messages" style="flex:1; overflow-y:auto; padding:1.5rem 2rem;">
+        <div class="chat-welcome" id="welcome">
+            <div style="text-align:center; padding:3rem 0;">
+                <h3 style="margin-bottom:0.5rem;">What would you like to do?</h3>
+                <p class="text-muted text-sm">Try: "Post an announcement that raids are Friday at 8pm"</p>
+                <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:1.5rem; flex-wrap:wrap;">
+                    <button class="btn btn-sm" onclick="suggest('Post an announcement')">New announcement</button>
+                    <button class="btn btn-sm" onclick="suggest('Create an event')">New event</button>
+                    <button class="btn btn-sm" onclick="suggest('Edit a page')">Edit page</button>
+                    <button class="btn btn-sm" onclick="suggest('Show me all announcements')">List content</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending changes approval area -->
+    <div id="pending-area" class="hidden" style="border-top:1px solid var(--border); padding:1rem 2rem; background:var(--bg-surface);">
+        <div class="flex items-center justify-between mb-2">
+            <strong>Pending Change</strong>
+            <div class="flex gap-2" style="gap:0.5rem;">
+                <button class="btn btn-success btn-sm" onclick="approveChange()">Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="rejectChange()">Reject</button>
+            </div>
+        </div>
+        <div id="pending-preview" class="text-sm mb-2"></div>
+        <div id="pending-diff" class="diff"></div>
+    </div>
+
+    <!-- Input -->
+    <div style="border-top:1px solid var(--border); padding:1rem 2rem; background:var(--bg-surface);">
+        <form id="chat-form" style="display:flex; gap:0.75rem;">
+            <input type="text" id="chat-input" placeholder="Describe what you want to change..." style="flex:1;" autofocus>
+            <button type="submit" class="btn btn-primary" id="send-btn">Send</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let conversation = [];
+    let currentPendingChange = null;
+
+    function suggest(text) {
+        document.getElementById('chat-input').value = text;
+        document.getElementById('chat-input').focus();
+    }
+
+    function addMessage(role, content) {
+        const welcome = document.getElementById('welcome');
+        if (welcome) welcome.remove();
+
+        const messages = document.getElementById('messages');
+        const div = document.createElement('div');
+        div.style.cssText = `margin-bottom:1rem; display:flex; ${role === 'user' ? 'justify-content:flex-end' : ''}`;
+
+        const bubble = document.createElement('div');
+        bubble.style.cssText = `
+            max-width:70%; padding:0.75rem 1rem; border-radius:12px; font-size:0.875rem; line-height:1.5;
+            ${role === 'user'
+                ? 'background:var(--primary); color:white; border-bottom-right-radius:4px;'
+                : 'background:var(--bg-elevated); border:1px solid var(--border); border-bottom-left-radius:4px;'}
+        `;
+        bubble.innerHTML = content.replace(/\n/g, '<br>');
+        div.appendChild(bubble);
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function showPending(change) {
+        currentPendingChange = change;
+        const area = document.getElementById('pending-area');
+        area.classList.remove('hidden');
+
+        document.getElementById('pending-preview').textContent = change.preview || '';
+        document.getElementById('pending-diff').innerHTML = formatDiff(change.diff || '');
+    }
+
+    function hidePending() {
+        document.getElementById('pending-area').classList.add('hidden');
+        currentPendingChange = null;
+    }
+
+    async function approveChange() {
+        if (!currentPendingChange) return;
+
+        const resp = await fetch('/api/chat/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ change: currentPendingChange, conversation }),
+        });
+
+        const data = await resp.json();
+        if (data.ok) {
+            addMessage('system', `Approved: ${data.message}`);
+            toast('Change committed successfully');
+        } else {
+            addMessage('system', `Error: ${data.detail || 'Failed to approve'}`);
+            toast('Failed to approve change', 'error');
+        }
+        hidePending();
+    }
+
+    async function rejectChange() {
+        if (!currentPendingChange) return;
+
+        await fetch('/api/chat/reject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ change: currentPendingChange }),
+        });
+
+        addMessage('system', 'Change rejected.');
+        hidePending();
+    }
+
+    document.getElementById('chat-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('chat-input');
+        const message = input.value.trim();
+        if (!message) return;
+
+        input.value = '';
+        addMessage('user', message);
+
+        const sendBtn = document.getElementById('send-btn');
+        sendBtn.disabled = true;
+        sendBtn.textContent = '...';
+
+        try {
+            const resp = await fetch('/api/chat/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, conversation }),
+            });
+
+            const data = await resp.json();
+
+            if (data.response) {
+                addMessage('assistant', data.response);
+            }
+
+            if (data.pending_changes && data.pending_changes.length > 0) {
+                showPending(data.pending_changes[0]);
+            }
+
+            if (data.conversation) {
+                conversation = data.conversation;
+            }
+        } catch (err) {
+            addMessage('system', `Error: ${err.message}`);
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send';
+        }
+    });
+</script>
+{% endblock %}

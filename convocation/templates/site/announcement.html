@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ item.metadata.title }} — {{ site_title }}{% endblock %}
+{% block main %}
+<div style="margin-bottom:1rem;">
+    <a href="/site/announcements/" style="color:var(--accent-light); text-decoration:none; font-size:0.875rem;">&larr; All Announcements</a>
+</div>
+<h1>{{ item.metadata.title }}</h1>
+<div style="color:var(--text-muted); font-size:0.875rem; margin-bottom:1.5rem;">
+    {{ item.metadata.get('author', '') }} &middot; {{ item.metadata.get('created_at', '')[:10] }}
+</div>
+<div class="card-body">{{ item.html | safe }}</div>
+{% endblock %}

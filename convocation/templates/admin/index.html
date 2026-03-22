@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <h2>Dashboard</h2>
+    <div class="flex gap-2" style="gap:0.75rem;">
+        <a href="/api/export/site" class="btn btn-sm">Export Site</a>
+        <a href="/site/" target="_blank" class="btn btn-sm btn-primary">View Public Site</a>
+    </div>
+</div>
+<div class="content">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:2rem;">
+        <div class="card" id="stat-announcements">
+            <div class="text-sm text-muted">Announcements</div>
+            <div style="font-size:2rem; font-weight:700; margin-top:0.25rem;">—</div>
+        </div>
+        <div class="card" id="stat-events">
+            <div class="text-sm text-muted">Events</div>
+            <div style="font-size:2rem; font-weight:700; margin-top:0.25rem;">—</div>
+        </div>
+        <div class="card" id="stat-pages">
+            <div class="text-sm text-muted">Pages</div>
+            <div style="font-size:2rem; font-weight:700; margin-top:0.25rem;">—</div>
+        </div>
+        <div class="card" id="stat-members">
+            <div class="text-sm text-muted">Members</div>
+            <div style="font-size:2rem; font-weight:700; margin-top:0.25rem;">—</div>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+        <div class="card">
+            <h3 style="font-size:1rem; margin-bottom:1rem;">Recent Activity</h3>
+            <div id="recent-activity"><span class="text-muted text-sm">Loading...</span></div>
+        </div>
+        <div class="card">
+            <h3 style="font-size:1rem; margin-bottom:1rem;">Quick Actions</h3>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <a href="/chat" class="btn" style="justify-content:flex-start;">Post an announcement</a>
+                <a href="/chat" class="btn" style="justify-content:flex-start;">Create an event</a>
+                <a href="/chat" class="btn" style="justify-content:flex-start;">Edit a page</a>
+                <a href="/settings" class="btn" style="justify-content:flex-start;">Invite a member</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadDashboard() {
+        // Load content counts
+        for (const type of ['announcements', 'events', 'pages', 'members']) {
+            try {
+                const resp = await fetch(`/api/content/${type}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const el = document.getElementById(`stat-${type}`);
+                    el.querySelector('div:last-child').textContent = data.length;
+                }
+            } catch {}
+        }
+
+        // Load recent audit entries
+        try {
+            const resp = await fetch('/api/audit/log?limit=10');
+            if (resp.ok) {
+                const data = await resp.json();
+                const el = document.getElementById('recent-activity');
+                if (data.entries.length === 0) {
+                    el.innerHTML = '<span class="text-muted text-sm">No activity yet. Use the Chat to get started.</span>';
+                } else {
+                    el.innerHTML = data.entries.map(e => `
+                        <div style="padding:0.5rem 0; border-bottom:1px solid var(--border); font-size:0.8rem;">
+                            <span style="color:var(--primary);">${e.user.display_name}</span>
+                            <span class="text-muted">${e.action}</span>
+                            <strong>${e.target}</strong>
+                            <span class="text-muted" style="float:right;">${new Date(e.timestamp).toLocaleString()}</span>
+                        </div>
+                    `).join('');
+                }
+            }
+        } catch {}
+    }
+
+    loadDashboard();
+</script>
+{% endblock %}

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Join — ConvocAItion</title>
+    <style>
+        :root {
+            --bg: #0f1117; --bg-surface: #1a1d27; --border: #2d3148;
+            --text: #e4e6f0; --text-muted: #8b8fa3; --primary: #6366f1;
+            --danger: #ef4444; --radius: 8px;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font); background: var(--bg); color: var(--text);
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        }
+        .card {
+            background: var(--bg-surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 2.5rem; width: 100%; max-width: 400px;
+        }
+        h1 {
+            font-size: 1.5rem; text-align: center; margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .subtitle { text-align: center; color: var(--text-muted); font-size: 0.875rem; margin-bottom: 2rem; }
+        .form-group { margin-bottom: 1rem; }
+        label { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); margin-bottom: 0.375rem; display: block; }
+        input {
+            background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 0.625rem 0.875rem; color: var(--text); font-size: 0.875rem; width: 100%;
+            font-family: var(--font);
+        }
+        input:focus { outline: none; border-color: var(--primary); }
+        .btn {
+            width: 100%; padding: 0.75rem; border-radius: var(--radius); border: none;
+            background: var(--primary); color: white; font-size: 0.875rem; cursor: pointer;
+            font-family: var(--font); font-weight: 500; margin-top: 0.5rem;
+        }
+        .error { color: var(--danger); font-size: 0.8rem; margin-top: 0.5rem; display: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Join ConvocAItion</h1>
+        <p class="subtitle">{{ site_title }}</p>
+        <form id="signup-form">
+            <input type="hidden" id="token" value="{{ token }}">
+            <div class="form-group">
+                <label for="display_name">Display Name</label>
+                <input type="text" id="display_name" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required minlength="8">
+            </div>
+            <div class="form-group">
+                <label for="password2">Confirm Password</label>
+                <input type="password" id="password2" required>
+            </div>
+            <div class="error" id="error"></div>
+            <button type="submit" class="btn">Create Account</button>
+        </form>
+    </div>
+    <script>
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errEl = document.getElementById('error');
+            errEl.style.display = 'none';
+
+            const pw = document.getElementById('password').value;
+            if (pw !== document.getElementById('password2').value) {
+                errEl.textContent = 'Passwords do not match';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            const resp = await fetch('/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: document.getElementById('token').value,
+                    display_name: document.getElementById('display_name').value,
+                    password: pw,
+                }),
+            });
+
+            if (resp.ok) {
+                window.location.href = '/';
+            } else {
+                const data = await resp.json();
+                errEl.textContent = data.detail || 'Signup failed';
+                errEl.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

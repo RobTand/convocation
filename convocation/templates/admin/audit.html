@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <h2>Audit Log</h2>
+    <div class="flex gap-2" style="gap:0.5rem;">
+        <select id="action-filter" style="width:auto;" onchange="loadAudit()">
+            <option value="">All actions</option>
+            <option value="content">Content changes</option>
+            <option value="user">User actions</option>
+        </select>
+    </div>
+</div>
+<div class="content">
+    <div id="audit-list"><span class="text-muted">Loading...</span></div>
+    <div id="audit-pagination" class="mt-2 flex justify-between"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let auditOffset = 0;
+    const auditLimit = 50;
+
+    async function loadAudit() {
+        const action = document.getElementById('action-filter').value;
+        let url = `/api/audit/log?limit=${auditLimit}&offset=${auditOffset}`;
+        if (action) url += `&action=${action}`;
+
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+            const el = document.getElementById('audit-list');
+
+            if (data.entries.length === 0) {
+                el.innerHTML = '<span class="text-muted">No audit entries.</span>';
+                return;
+            }
+
+            el.innerHTML = `
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--border); text-align:left;">
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Time</th>
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">User</th>
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Action</th>
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Target</th>
+                            <th style="padding:0.5rem; font-size:0.75rem; color:var(--text-muted);">Commit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.entries.map(e => `
+                            <tr style="border-bottom:1px solid var(--border);">
+                                <td style="padding:0.5rem; font-size:0.8rem; color:var(--text-muted); white-space:nowrap;">
+                                    ${new Date(e.timestamp).toLocaleString()}
+                                </td>
+                                <td style="padding:0.5rem; font-size:0.8rem;">${escHtml(e.user.display_name)}</td>
+                                <td style="padding:0.5rem;">
+                                    <span style="font-size:0.75rem; padding:0.125rem 0.5rem; border-radius:9999px; background:var(--bg-elevated); border:1px solid var(--border);">
+                                        ${escHtml(e.action)}
+                                    </span>
+                                </td>
+                                <td style="padding:0.5rem; font-size:0.8rem; font-family:var(--font-mono);">${escHtml(e.target)}</td>
+                                <td style="padding:0.5rem; font-size:0.8rem;">
+                                    ${e.commit_sha ? `<code style="color:var(--primary);">${e.commit_sha.substring(0, 8)}</code>` : '—'}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            // Pagination
+            const pag = document.getElementById('audit-pagination');
+            pag.innerHTML = `
+                <span class="text-sm text-muted">${data.total} total entries</span>
+                <div style="display:flex; gap:0.5rem;">
+                    ${auditOffset > 0 ? `<button class="btn btn-sm" onclick="auditOffset-=${auditLimit}; loadAudit();">Previous</button>` : ''}
+                    ${auditOffset + auditLimit < data.total ? `<button class="btn btn-sm" onclick="auditOffset+=${auditLimit}; loadAudit();">Next</button>` : ''}
+                </div>
+            `;
+        } catch (err) {
+            document.getElementById('audit-list').innerHTML = `<span class="text-muted">Error: ${err.message}</span>`;
+        }
+    }
+
+    loadAudit();
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+services:
+  convocation:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./content-repo:/app/content-repo
+      - ./output:/app/output
+      - ./convocation.db:/app/convocation.db
+    env_file:
+      - .env
+    restart: unless-stopped

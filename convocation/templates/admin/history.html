@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}History{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <h2>Content History</h2>
+    <select id="content-type-filter" style="width:auto;" onchange="loadHistory()">
+        <option value="">All content</option>
+        <option value="announcements">Announcements</option>
+        <option value="events">Events</option>
+        <option value="pages">Pages</option>
+        <option value="members">Members</option>
+    </select>
+</div>
+<div class="content">
+    <div id="history-list"><span class="text-muted">Loading...</span></div>
+
+    <!-- Diff modal -->
+    <div id="diff-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; display:flex; align-items:center; justify-content:center;">
+        <div class="card" style="width:90%; max-width:800px; max-height:80vh; overflow-y:auto;">
+            <div class="flex items-center justify-between mb-2">
+                <h3 style="font-size:1rem;" id="diff-title">Commit Diff</h3>
+                <div class="flex" style="gap:0.5rem;">
+                    <button class="btn btn-danger btn-sm" onclick="revertCommit()">Revert this commit</button>
+                    <button class="btn btn-sm" onclick="closeDiff()">Close</button>
+                </div>
+            </div>
+            <div id="diff-content" class="diff"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let selectedSha = null;
+
+    async function loadHistory() {
+        const type = document.getElementById('content-type-filter').value;
+        const url = type ? `/api/content/history/${type}` : '/api/content/history/announcements';
+
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+            const el = document.getElementById('history-list');
+
+            if (data.length === 0) {
+                el.innerHTML = '<span class="text-muted">No history yet.</span>';
+                return;
+            }
+
+            el.innerHTML = data.map(c => `
+                <div style="padding:0.75rem 0; border-bottom:1px solid var(--border); cursor:pointer;" onclick="showDiff('${c.sha}')">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <code style="color:var(--primary); font-size:0.8rem;">${c.short_sha}</code>
+                            <span style="margin-left:0.75rem;">${escHtml(c.message)}</span>
+                        </div>
+                        <span class="text-muted text-sm">${new Date(c.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div class="text-sm text-muted mt-1">by ${escHtml(c.author)}</div>
+                </div>
+            `).join('');
+        } catch (err) {
+            document.getElementById('history-list').innerHTML = `<span class="text-muted">Error: ${err.message}</span>`;
+        }
+    }
+
+    async function showDiff(sha) {
+        selectedSha = sha;
+        try {
+            const resp = await fetch(`/api/content/commit/${sha}`);
+            const data = await resp.json();
+            document.getElementById('diff-title').textContent = `Commit ${sha.substring(0, 8)}`;
+            document.getElementById('diff-content').innerHTML = formatDiff(data.diff);
+            document.getElementById('diff-modal').classList.remove('hidden');
+            document.getElementById('diff-modal').style.display = 'flex';
+        } catch (err) {
+            toast('Failed to load diff', 'error');
+        }
+    }
+
+    function closeDiff() {
+        document.getElementById('diff-modal').classList.add('hidden');
+        selectedSha = null;
+    }
+
+    async function revertCommit() {
+        if (!selectedSha || !confirm('Revert this commit? This will create a new commit undoing these changes.')) return;
+
+        try {
+            const resp = await fetch('/api/content/revert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ commit_sha: selectedSha }),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                toast('Commit reverted successfully');
+                closeDiff();
+                loadHistory();
+            } else {
+                toast(data.detail || 'Revert failed', 'error');
+            }
+        } catch (err) {
+            toast('Revert failed: ' + err.message, 'error');
+        }
+    }
+
+    // Close modal on background click
+    document.getElementById('diff-modal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeDiff();
+    });
+
+    loadHistory();
+</script>
+{% endblock %}

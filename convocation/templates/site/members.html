@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Members — {{ site_title }}{% endblock %}
+{% block main %}
+<h1>Members</h1>
+<div class="grid">
+{% for m in members %}
+<div class="card">
+    <div class="card-title">{{ m.metadata.title }}</div>
+    <div class="card-meta">
+        {{ m.metadata.get('member_role', 'Member') }}
+        {% if m.metadata.get('joined_date') %} &middot; Joined {{ m.metadata.joined_date }}{% endif %}
+    </div>
+    {% if m.html %}<div class="card-body">{{ m.html | safe }}</div>{% endif %}
+</div>
+{% else %}
+<p style="color:var(--text-muted);">No members listed.</p>
+{% endfor %}
+</div>
+{% endblock %}
