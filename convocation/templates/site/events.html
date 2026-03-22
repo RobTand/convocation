@@ -5,7 +5,7 @@
 <div class="grid">
 {% for item in events %}
 <div class="card">
-    <div class="card-title"><a href="/site/events/{{ item.slug }}.html">{{ item.metadata.title }}</a></div>
+    <div class="card-title"><a href="/events/{{ item.slug }}.html">{{ item.metadata.title }}</a></div>
     <div class="card-meta">
         {{ item.metadata.get('event_date', '')[:16] }}
         {% if item.metadata.get('location') %} &middot; {{ item.metadata.location }}{% endif %}

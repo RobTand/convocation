@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     llm_model: str = "claude-haiku-4-5-20251001"
 
     # Site
-    site_title: str = "ConvocAItion"
+    site_title: str = "ConvocAtIon"
     site_description: str = "Your community's site. Owned by everyone."
     site_url: str = "http://localhost:8080"
 

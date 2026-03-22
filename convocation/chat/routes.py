@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from convocation.auth.deps import require_officer
-from convocation.auth.models import AuditLog, User
+from convocation.auth.models import AuditLog, Role, User
 from convocation.chat.llm import chat_with_llm
-from convocation.chat.tools import execute_tool
+from convocation.chat.tools import QUICK_TOOL_NAMES, execute_tool
 from convocation.content.store import ContentStore
 from convocation.content.renderer import render_site
 from convocation.db import get_db
@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 class ChatMessage(BaseModel):
     message: str
     conversation: list[dict[str, Any]] = []
+    mode: str = "quick"
 
 
 class ApproveChange(BaseModel):
@@ -41,8 +42,12 @@ async def send_message(
 ):
     """Send a message to the AI assistant. Returns response and any pending changes."""
 
+    mode = req.mode if req.mode in ("quick", "super") else "quick"
+    if mode == "super" and user.role != Role.owner:
+        raise HTTPException(status_code=403, detail="Super mode is restricted to site owners")
+
     messages = req.conversation + [{"role": "user", "content": req.message}]
-    response = await chat_with_llm(messages)
+    response = await chat_with_llm(messages, mode=mode)
 
     # Process any tool calls
     pending_changes = []
@@ -50,6 +55,13 @@ async def send_message(
 
     if response.get("tool_calls"):
         for tc in response["tool_calls"]:
+            if mode == "quick" and tc["name"] not in QUICK_TOOL_NAMES:
+                tool_results.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": "Error: This tool is not available in Quick mode. Switch to Super mode to make structural changes.",
+                })
+                continue
             result = execute_tool(tc["name"], tc["arguments"], store, user.display_name)
 
             if result.get("action") == "read":
@@ -89,7 +101,7 @@ async def send_message(
                 {"role": "assistant", "content": response.get("content", ""), "tool_calls": response["tool_calls"]},
                 *tool_results,
             ]
-            response = await chat_with_llm(follow_up_messages)
+            response = await chat_with_llm(follow_up_messages, mode=mode)
 
     return {
         "response": response.get("content", ""),

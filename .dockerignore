@@ -1,0 +1,6 @@
+*.db
+__pycache__
+.env
+.git
+output
+content-repo

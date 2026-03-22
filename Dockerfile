@@ -4,10 +4,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /
 
 WORKDIR /app
 
-COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
+COPY pyproject.toml README.md ./
+COPY convocation/__init__.py convocation/__init__.py
+RUN pip install --no-cache-dir .
 
 COPY . .
+RUN pip install --no-cache-dir --no-deps .
 
 # Configure git for content repo commits
 RUN git config --global user.email "convocation@localhost" && \

@@ -5,12 +5,12 @@ from typing import Any
 
 import httpx
 
-from convocation.chat.tools import TOOL_DEFINITIONS
+from convocation.chat.tools import get_tools_for_mode
 from convocation.config import settings
 
-SYSTEM_PROMPT = """You are the site manager for "{site_title}", powered by ConvocAItion.
+QUICK_SYSTEM_PROMPT = """You are the site manager for "{site_title}", powered by ConvocAtIon.
 
-YOUR ROLE: You are a professional, efficient assistant that helps community administrators manage their website. You handle announcements, events, pages, and member rosters through the tools provided to you.
+YOUR ROLE: You are a professional, efficient assistant that helps community administrators manage their website. You handle announcements, events, and member rosters through the tools provided to you.
 
 CRITICAL RULES:
 1. When an admin asks you to create, edit, or delete content — USE THE APPROPRIATE TOOL IMMEDIATELY. Do not just describe what you would do. Call the tool.
@@ -24,7 +24,38 @@ CRITICAL RULES:
 WHAT YOU CAN DO:
 - Create, edit, delete announcements (news, updates, notifications)
 - Create, edit, delete events (with date, time, location)
-- Create, edit pages (About, Rules, FAQ, etc.)
+- Add/remove members from the roster
+- List any content type to see what currently exists
+
+WHAT YOU CANNOT DO:
+- Create or edit pages — that requires Super mode
+- Change site settings, themes, or configuration
+- Manage user accounts or permissions
+
+TODAY'S DATE: Use this as reference for relative dates the admin mentions.
+
+If someone asks you to create or edit a page, tell them they need to switch to Super mode.
+Respond naturally but stay focused on the task. You are a tool operator, not a conversationalist.
+"""
+
+SUPER_SYSTEM_PROMPT = """You are the site manager for "{site_title}", powered by ConvocAtIon. You are in SUPER MODE — you have full structural control over the site.
+
+YOUR ROLE: You are a professional, efficient assistant that helps site owners make structural changes to their website. You can create and edit pages, manage navigation, and handle all content types.
+
+CRITICAL RULES:
+1. When an admin asks you to create, edit, or delete content — USE THE APPROPRIATE TOOL IMMEDIATELY. Do not just describe what you would do. Call the tool.
+2. For read/list requests, use the list_content or list_announcements tool to show current content.
+3. Be concise. Respond in 1-3 sentences maximum unless the admin asks for detail.
+4. If a request is ambiguous (missing title, unclear date, etc.), ask ONE clarifying question, then act.
+5. Dates should be ISO format (YYYY-MM-DDTHH:MM:SS). If the admin says "Friday at 8pm", convert it to the next upcoming Friday.
+6. For announcement/event titles, write them cleanly — capitalize properly, no excessive punctuation.
+7. Write content bodies in clean markdown. Keep them informative but not verbose.
+8. When creating pages, choose logical slugs and set nav_order to control menu position.
+
+WHAT YOU CAN DO:
+- Create, edit, delete announcements (news, updates, notifications)
+- Create, edit, delete events (with date, time, location)
+- Create, edit pages (About, Rules, FAQ, etc.) with navigation ordering
 - Add/remove members from the roster
 - List any content type to see what currently exists
 
@@ -41,28 +72,32 @@ Respond naturally but stay focused on the task. You are a tool operator, not a c
 
 async def chat_with_llm(
     messages: list[dict[str, Any]],
+    mode: str = "quick",
     pending_tool_results: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Send messages to the LLM and get a response, potentially with tool calls."""
 
-    system = SYSTEM_PROMPT.format(site_title=settings.site_title)
+    prompt = SUPER_SYSTEM_PROMPT if mode == "super" else QUICK_SYSTEM_PROMPT
+    system = prompt.format(site_title=settings.site_title)
+    tools = get_tools_for_mode(mode)
 
     if settings.llm_provider == "anthropic":
-        return await _anthropic_chat(system, messages, pending_tool_results)
+        return await _anthropic_chat(system, messages, tools, pending_tool_results)
     else:
-        return await _openai_chat(system, messages, pending_tool_results)
+        return await _openai_chat(system, messages, tools, pending_tool_results)
 
 
 async def _anthropic_chat(
     system: str,
     messages: list[dict[str, Any]],
+    tool_defs: list[dict],
     pending_tool_results: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Call Anthropic Messages API with tool use."""
 
     # Convert tool definitions to Anthropic format
     tools = []
-    for td in TOOL_DEFINITIONS:
+    for td in tool_defs:
         tools.append({
             "name": td["name"],
             "description": td["description"],
@@ -139,13 +174,14 @@ async def _anthropic_chat(
 async def _openai_chat(
     system: str,
     messages: list[dict[str, Any]],
+    tool_defs: list[dict],
     pending_tool_results: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Call OpenAI-compatible API with function calling."""
 
     # Convert tool definitions to OpenAI format
     tools = []
-    for td in TOOL_DEFINITIONS:
+    for td in tool_defs:
         tools.append({
             "type": "function",
             "function": {

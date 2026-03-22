@@ -5,7 +5,7 @@
 {% for item in announcements %}
 <div class="card">
     <div class="card-title">
-        <a href="/site/announcements/{{ item.slug }}.html">{{ item.metadata.title }}</a>
+        <a href="/announcements/{{ item.slug }}.html">{{ item.metadata.title }}</a>
         {% if item.metadata.pinned %}<span class="badge">Pinned</span>{% endif %}
     </div>
     <div class="card-meta">{{ item.metadata.get('author', '') }} &middot; {{ item.metadata.get('created_at', '')[:10] }}</div>

@@ -29,6 +29,23 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_or_none(
+    session: AsyncSession = Depends(get_db),
+    access_token: str | None = Cookie(default=None),
+) -> User | None:
+    """Return the current user if authenticated, or None. Never raises."""
+    if not access_token:
+        return None
+    payload = decode_access_token(access_token)
+    if payload is None:
+        return None
+    result = await session.execute(select(User).where(User.id == payload["sub"]))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        return None
+    return user
+
+
 async def require_officer(user: User = Depends(get_current_user)) -> User:
     if user.role not in (Role.owner, Role.officer):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Officers only")

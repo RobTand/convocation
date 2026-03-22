@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Join — ConvocAItion</title>
+    <title>Join — ConvocAtIon</title>
     <style>
         :root {
             --bg: #0f1117; --bg-surface: #1a1d27; --border: #2d3148;
@@ -44,7 +44,7 @@
 </head>
 <body>
     <div class="card">
-        <h1>Join ConvocAItion</h1>
+        <h1>Join Convoc<span style="-webkit-text-fill-color:#ef4444">A</span>t<span style="-webkit-text-fill-color:#ef4444">I</span>on</h1>
         <p class="subtitle">{{ site_title }}</p>
         <form id="signup-form">
             <input type="hidden" id="token" value="{{ token }}">
@@ -88,7 +88,7 @@
             });
 
             if (resp.ok) {
-                window.location.href = '/';
+                window.location.href = '/admin';
             } else {
                 const data = await resp.json();
                 errEl.textContent = data.detail || 'Signup failed';

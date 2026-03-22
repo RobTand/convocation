@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About ConvocAtIon</title>
+    <style>
+        :root {
+            --bg: #0c0e14; --bg-card: #141620; --border: #252840;
+            --text: #e2e4ef; --text-muted: #7c809a; --accent: #6366f1;
+            --accent-light: #818cf8;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font); background: var(--bg); color: var(--text);
+            line-height: 1.7; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .about {
+            max-width: 640px; width: 100%;
+        }
+        h1 {
+            font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        h1 .red { -webkit-text-fill-color: #ef4444; }
+        .tagline {
+            font-size: 1.125rem; color: var(--accent-light); margin-bottom: 2rem; font-weight: 500;
+        }
+        p { margin-bottom: 1.25rem; color: var(--text); font-size: 0.95rem; }
+        .muted { color: var(--text-muted); }
+        a { color: var(--accent-light); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 12px; padding: 2rem; margin-top: 2rem;
+        }
+        .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; }
+        .features { list-style: none; }
+        .features li {
+            padding: 0.375rem 0; font-size: 0.9rem; color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+        .features li:last-child { border-bottom: none; }
+        .features li strong { color: var(--text); }
+        .back { display: inline-block; margin-top: 2rem; font-size: 0.875rem; }
+    </style>
+</head>
+<body>
+    <div class="about">
+        <h1>Convoc<span class="red">A</span>t<span class="red">I</span>on</h1>
+        <div class="tagline">The first AI-native CMS for gaming communities.</div>
+
+        <p>
+            ConvocAtIon is a <strong>first-of-its-kind</strong> lightweight content management platform
+            purpose-built for gaming communities. Designed by
+            <strong>Rob Tand</strong>, it reimagines how community websites are managed by putting
+            AI at the center of the content workflow.
+        </p>
+
+        <p>
+            Instead of navigating dashboards, clicking through forms, and wrestling with WYSIWYG editors,
+            ConvocAtIon lets you manage your entire site through <strong>natural language conversation</strong>.
+            Post announcements, schedule events, update your roster, build pages &mdash; all by simply
+            telling the AI what you need. It's community management, democratized.
+        </p>
+
+        <p>
+            Every change is version-controlled, auditable, and reversible. Your content lives in git,
+            your site renders to static HTML, and the whole thing is portable enough to export as a
+            single zip file. No vendor lock-in. No black boxes.
+        </p>
+
+        <p class="muted">
+            Leveraging cutting-edge LLM tool-calling capabilities to deliver a paradigm shift in
+            community engagement infrastructure, ConvocAtIon empowers stakeholders to drive
+            meaningful content velocity through an innovative conversational interface that
+            transforms organizational knowledge into actionable web presence at scale.
+        </p>
+
+        <div class="card">
+            <h2>Under the Hood</h2>
+            <ul class="features">
+                <li><strong>AI-Driven</strong> &mdash; LLM chat with tool calling for content ops</li>
+                <li><strong>Git-Backed</strong> &mdash; Full history, diffs, and one-click revert</li>
+                <li><strong>Static Output</strong> &mdash; Fast, secure, deployable anywhere</li>
+                <li><strong>Dual Modes</strong> &mdash; Quick mode for daily ops, Super mode for structural changes</li>
+                <li><strong>Discord Integration</strong> &mdash; Manage your site from where your community already lives</li>
+                <li><strong>Fully Portable</strong> &mdash; Export everything, including history, as a single bundle</li>
+                <li><strong>Open Source</strong> &mdash; GPL-3.0 &mdash; <a href="https://github.com/RobTand/convocation">github.com/RobTand/convocation</a></li>
+            </ul>
+        </div>
+
+        <a href="/" class="back">&larr; Back to {{ site_title }}</a>
+    </div>
+</body>
+</html>

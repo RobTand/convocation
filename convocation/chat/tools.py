@@ -164,6 +164,21 @@ TOOL_DEFINITIONS = [
 ]
 
 
+QUICK_TOOL_NAMES = {
+    "create_announcement", "edit_announcement", "delete_announcement",
+    "list_announcements", "create_event", "edit_event", "delete_event",
+    "add_member", "remove_member", "list_content",
+}
+
+SUPER_TOOL_NAMES = {td["name"] for td in TOOL_DEFINITIONS}
+
+
+def get_tools_for_mode(mode: str) -> list[dict]:
+    """Return tool definitions filtered by mode."""
+    names = SUPER_TOOL_NAMES if mode == "super" else QUICK_TOOL_NAMES
+    return [td for td in TOOL_DEFINITIONS if td["name"] in names]
+
+
 def slugify(text: str) -> str:
     """Convert text to URL-safe slug."""
     slug = text.lower().strip()
