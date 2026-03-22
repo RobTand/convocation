@@ -214,35 +214,68 @@
 
     <footer>
         <div class="container">
-            <p>{{ site_title }} &mdash; Powered by <a href="/about/convocation">Convoc<span style="color:#ef4444">A</span>t<span style="color:#ef4444">I</span>on</a></p>
+            <p>{{ site_title }} &mdash; Powered by <a href="/about/convocation">Convoc<span style="color:#ef4444">A</span>t<span style="color:#ef4444">I</span>on</a> &mdash; <a href="/admin">Admin</a></p>
         </div>
     </footer>
 
     {% if vapid_public_key %}
+    <div id="push-banner" style="display:none; position:fixed; bottom:0; left:0; right:0; background:var(--bg-card); border-top:1px solid var(--border); padding:1rem 1.5rem; z-index:100; animation:slideUp 0.3s ease;">
+        <div style="max-width:960px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+            <div style="font-size:0.9rem;">
+                <strong style="color:var(--accent-light);">Stay in the loop</strong>
+                <span style="color:var(--text-muted);"> — Get notified about new announcements and events.</span>
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-shrink:0;">
+                <button onclick="subscribePush()" style="padding:0.5rem 1rem; border-radius:8px; border:none; background:var(--accent); color:white; font-size:0.85rem; cursor:pointer; font-family:var(--font);">Enable notifications</button>
+                <button onclick="dismissPush()" style="padding:0.5rem 0.75rem; border-radius:8px; border:1px solid var(--border); background:none; color:var(--text-muted); font-size:0.85rem; cursor:pointer; font-family:var(--font);">Not now</button>
+            </div>
+        </div>
+    </div>
+    <style>@keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }</style>
     <script>
-        // Service worker for push notifications
-        if ('serviceWorker' in navigator && 'PushManager' in window) {
-            navigator.serviceWorker.register('/static/sw.js').then(reg => {
-                reg.pushManager.getSubscription().then(sub => {
-                    if (!sub) {
-                        reg.pushManager.subscribe({
-                            userVisibleOnly: true,
-                            applicationServerKey: '{{ vapid_public_key }}'
-                        }).then(sub => {
-                            fetch('/api/push/subscribe', {
-                                method: 'POST',
-                                headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({
-                                    endpoint: sub.endpoint,
-                                    keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))),
-                                            auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) }
-                                })
-                            });
-                        });
-                    }
-                });
-            });
+        const VAPID_KEY = '{{ vapid_public_key }}';
+        let swReg = null;
+
+        async function initPush() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+            if (localStorage.getItem('push-dismissed')) return;
+
+            swReg = await navigator.serviceWorker.register('/static/sw.js');
+            const sub = await swReg.pushManager.getSubscription();
+            if (!sub) {
+                document.getElementById('push-banner').style.display = 'block';
+            }
         }
+
+        async function subscribePush() {
+            try {
+                const sub = await swReg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: VAPID_KEY
+                });
+                await fetch('/api/push/subscribe', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        endpoint: sub.endpoint,
+                        keys: {
+                            p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))),
+                            auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth'))))
+                        }
+                    })
+                });
+                document.getElementById('push-banner').style.display = 'none';
+            } catch (err) {
+                console.error('Push subscription failed:', err);
+            }
+        }
+
+        function dismissPush() {
+            document.getElementById('push-banner').style.display = 'none';
+            localStorage.setItem('push-dismissed', '1');
+        }
+
+        initPush();
     </script>
     {% endif %}
 </body>

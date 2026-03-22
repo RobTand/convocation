@@ -7,6 +7,7 @@ services:
       - ./content-repo:/app/content-repo
       - ./output:/app/output
       - ./convocation.db:/app/convocation.db
+      - ./uploads:/app/convocation/static/uploads
     env_file:
       - .env
     restart: unless-stopped

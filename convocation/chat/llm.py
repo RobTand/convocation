@@ -108,7 +108,24 @@ async def _anthropic_chat(
     api_messages = []
     for msg in messages:
         if msg["role"] == "user":
-            api_messages.append({"role": "user", "content": msg["content"]})
+            # Support multimodal content (text + images)
+            if isinstance(msg["content"], list):
+                content = []
+                for block in msg["content"]:
+                    if block.get("type") == "text":
+                        content.append({"type": "text", "text": block["text"]})
+                    elif block.get("type") == "image":
+                        content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": block["media_type"],
+                                "data": block["base64"],
+                            },
+                        })
+                api_messages.append({"role": "user", "content": content})
+            else:
+                api_messages.append({"role": "user", "content": msg["content"]})
         elif msg["role"] == "assistant":
             if "tool_calls" in msg:
                 # Convert tool calls to Anthropic content blocks
@@ -194,7 +211,21 @@ async def _openai_chat(
     api_messages = [{"role": "system", "content": system}]
     for msg in messages:
         if msg["role"] in ("user", "assistant"):
-            api_msg = {"role": msg["role"], "content": msg.get("content", "")}
+            raw_content = msg.get("content", "")
+            # Support multimodal content for user messages
+            if msg["role"] == "user" and isinstance(raw_content, list):
+                content = []
+                for block in raw_content:
+                    if block.get("type") == "text":
+                        content.append({"type": "text", "text": block["text"]})
+                    elif block.get("type") == "image":
+                        content.append({
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{block['media_type']};base64,{block['base64']}"},
+                        })
+                api_msg = {"role": "user", "content": content}
+            else:
+                api_msg = {"role": msg["role"], "content": raw_content or ""}
             if msg.get("tool_calls"):
                 api_msg["tool_calls"] = [
                     {

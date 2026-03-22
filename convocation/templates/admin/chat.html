@@ -4,10 +4,42 @@
 
 {% block head %}
 <style>
+    .dots span { animation: blink 1.4s infinite; opacity: 0; }
+    .dots span:nth-child(1) { animation-delay: 0s; }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+
+    .conv-list { list-style:none; max-height:50vh; overflow-y:auto; }
+    .conv-item {
+        padding:0.625rem 0.75rem; border-radius:var(--radius); cursor:pointer;
+        font-size:0.8rem; margin-bottom:2px; transition: background 0.15s;
+        display:flex; justify-content:space-between; align-items:center; gap:0.5rem;
+    }
+    .conv-item:hover { background:var(--bg-elevated); }
+    .conv-item.active { background:var(--bg-elevated); border-left:2px solid var(--primary); }
+    .conv-item .title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .conv-item .meta { color:var(--text-muted); font-size:0.7rem; flex-shrink:0; }
+    .conv-item.closed .title { color:var(--text-muted); }
+
+    .conv-sidebar {
+        width:260px; border-right:1px solid var(--border); background:var(--bg);
+        display:flex; flex-direction:column; overflow:hidden;
+    }
+    .conv-sidebar-header {
+        padding:0.75rem; border-bottom:1px solid var(--border);
+        display:flex; justify-content:space-between; align-items:center;
+    }
+    .conv-sidebar-header h3 { font-size:0.85rem; font-weight:600; }
+
     @media (max-width: 768px) {
         .topbar { flex-direction: column; align-items: flex-start !important; gap: 0.5rem; }
         .topbar h2 { font-size: 1rem; }
-        #mode-label { display: none; }
+        .conv-sidebar {
+            width:100%; position:absolute; z-index:50; height:100%;
+            display:none; top:0; left:0;
+        }
+        .conv-sidebar.open { display:flex; }
         .chat-welcome h3 { font-size: 1rem; }
         .chat-welcome .btn { font-size: 0.75rem; padding: 0.375rem 0.625rem; }
     }
@@ -15,21 +47,203 @@
 {% endblock %}
 {% block content %}
 <div class="topbar" style="flex-wrap:wrap;">
-    <h2>AI Assistant</h2>
-    <div class="flex items-center" style="gap:0.75rem;">
-        <div id="mode-toggle" style="display:inline-flex; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;">
-            <button class="mode-btn active" data-mode="quick" onclick="setMode('quick')" style="padding:0.375rem 0.75rem; font-size:0.8rem; border:none; cursor:pointer; font-family:var(--font); background:var(--primary); color:white;">Quick</button>
-            {% if user_role == "owner" %}
-            <button class="mode-btn" data-mode="super" onclick="setMode('super')" style="padding:0.375rem 0.75rem; font-size:0.8rem; border:none; border-left:1px solid var(--border); cursor:pointer; font-family:var(--font); background:var(--bg-elevated); color:var(--text-muted);">Super</button>
-            {% endif %}
+    <div class="flex items-center justify-between" style="width:100%; gap:0.75rem;">
+        <div class="flex items-center" style="gap:0.5rem;">
+            <button onclick="toggleConvSidebar()" class="btn btn-sm" title="Conversations" style="padding:0.375rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <h2>AI Assistant</h2>
         </div>
-        <span id="mode-label" class="text-sm text-muted">Announcements, events, members</span>
+        <div class="flex items-center" style="gap:0.75rem;">
+            <div id="mode-toggle" style="display:inline-flex; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;">
+                <button class="mode-btn active" data-mode="quick" onclick="setMode('quick')" style="padding:0.375rem 0.75rem; font-size:0.8rem; border:none; cursor:pointer; font-family:var(--font); background:var(--primary); color:white;">Quick</button>
+                {% if user_role == "owner" %}
+                <button class="mode-btn" data-mode="super" onclick="setMode('super')" style="padding:0.375rem 0.75rem; font-size:0.8rem; border:none; border-left:1px solid var(--border); cursor:pointer; font-family:var(--font); background:var(--bg-elevated); color:var(--text-muted);">Super</button>
+                {% endif %}
+            </div>
+            <span id="llm-status" class="text-sm" style="display:inline-flex; align-items:center; gap:0.375rem;">
+                <span id="llm-dot" style="width:8px; height:8px; border-radius:50%; background:var(--text-muted);"></span>
+                <span id="llm-text" style="color:var(--text-muted);">Checking...</span>
+            </span>
+        </div>
+    </div>
+    <div style="width:100%; margin-top:0.375rem; padding:0.5rem 0.75rem; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); font-size:0.75rem; color:var(--text-muted); line-height:1.4;">
+        Tenari runs these models locally — please be judicious with complex changes during peak hours.
     </div>
 </div>
-<div class="content" style="display:flex; flex-direction:column; height:calc(100vh - 57px); height:calc(100dvh - 57px); padding:0;">
-    <!-- Messages -->
-    <div id="messages" style="flex:1; overflow-y:auto; padding:1.5rem 1rem;">
-        <div class="chat-welcome" id="welcome">
+<div class="content" style="display:flex; height:calc(100vh - 57px); height:calc(100dvh - 57px); padding:0; position:relative;">
+    <!-- Conversation sidebar -->
+    <div class="conv-sidebar" id="conv-sidebar">
+        <div class="conv-sidebar-header">
+            <h3>Conversations</h3>
+            <button class="btn btn-sm btn-primary" onclick="newConversation()" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ New</button>
+        </div>
+        <ul class="conv-list" id="conv-list"></ul>
+    </div>
+
+    <!-- Chat area -->
+    <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+        <!-- Messages -->
+        <div id="messages" style="flex:1; overflow-y:auto; padding:1.5rem 1rem;">
+            <div class="chat-welcome" id="welcome">
+                <div style="text-align:center; padding:3rem 0;">
+                    <h3 style="margin-bottom:0.5rem;">What would you like to do?</h3>
+                    <p class="text-muted text-sm">Try: "Post an announcement that raids are Friday at 8pm"</p>
+                    <div style="display:flex; gap:0.5rem; justify-content:center; margin-top:1.5rem; flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="suggest('Post an announcement')">New announcement</button>
+                        <button class="btn btn-sm" onclick="suggest('Create an event')">New event</button>
+                        <button class="btn btn-sm" onclick="suggest('Edit a page')">Edit page</button>
+                        <button class="btn btn-sm" onclick="suggest('Show me all announcements')">List content</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending changes approval area -->
+        <div id="pending-area" class="hidden" style="border-top:1px solid var(--border); padding:1rem; background:var(--bg-surface);">
+            <div class="flex items-center justify-between mb-2">
+                <strong>Pending Change</strong>
+                <div class="flex gap-2" style="gap:0.5rem;">
+                    <button class="btn btn-success btn-sm" onclick="approveChange()">Approve</button>
+                    <button class="btn btn-danger btn-sm" onclick="rejectChange()">Reject</button>
+                </div>
+            </div>
+            <div id="pending-preview" class="text-sm mb-2"></div>
+            <div id="pending-diff" class="diff" style="max-height:30vh; overflow-y:auto;"></div>
+        </div>
+
+        <!-- Lock bar -->
+        <div id="lock-bar" style="display:none; border-top:1px solid var(--warning); padding:0.5rem 1rem; background:rgba(245,158,11,0.1); font-size:0.8rem; color:var(--warning); align-items:center; justify-content:space-between; gap:0.5rem;"></div>
+
+        <!-- Image preview -->
+        <div id="image-preview" style="display:none; border-top:1px solid var(--border); padding:0.5rem 1rem; background:var(--bg-surface);">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <img id="preview-thumb" style="height:48px; border-radius:4px; border:1px solid var(--border);">
+                <span id="preview-name" class="text-sm text-muted" style="flex:1;"></span>
+                <button class="btn btn-sm" onclick="clearImage()" style="padding:0.25rem 0.5rem;">&times;</button>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div style="border-top:1px solid var(--border); padding:0.75rem 1rem; background:var(--bg-surface);">
+            <form id="chat-form" style="display:flex; gap:0.5rem; align-items:center;">
+                <input type="file" id="image-input" accept="image/*" style="display:none;" onchange="handleImageSelect(this)">
+                <button type="button" onclick="document.getElementById('image-input').click()" class="btn btn-sm" style="padding:0.5rem; flex-shrink:0;" title="Attach image">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </button>
+                <input type="text" id="chat-input" placeholder="Describe what you want to change..." style="flex:1; font-size:16px;" autofocus>
+                <button type="submit" class="btn btn-primary" id="send-btn">Send</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let conversationId = null;
+    let currentPendingChange = null;
+    let currentMode = 'quick';
+
+    // --- LLM Status ---
+    async function checkLlmStatus() {
+        try {
+            const resp = await fetch('/api/chat/llm-status');
+            const data = await resp.json();
+            const dot = document.getElementById('llm-dot');
+            const text = document.getElementById('llm-text');
+
+            if (!data.online) {
+                dot.style.background = 'var(--danger)';
+                text.style.color = 'var(--danger)';
+                text.textContent = 'LLM offline';
+            } else if (data.running > 0 || data.waiting > 0) {
+                dot.style.background = 'var(--warning)';
+                text.style.color = 'var(--warning)';
+                const total = data.running + data.waiting;
+                text.textContent = `${total} query${total > 1 ? 's' : ''} active`;
+            } else {
+                dot.style.background = 'var(--success)';
+                text.style.color = 'var(--text-muted)';
+                text.textContent = 'Ready';
+            }
+        } catch {
+            document.getElementById('llm-dot').style.background = 'var(--danger)';
+            document.getElementById('llm-text').textContent = 'Status unknown';
+        }
+    }
+
+    let llmPollInterval = null;
+    function startLlmPolling() {
+        if (llmPollInterval) return;
+        checkLlmStatus();
+        llmPollInterval = setInterval(() => { checkLlmStatus(); checkEditLock(); }, 10000);
+    }
+    function stopLlmPolling() {
+        if (llmPollInterval) { clearInterval(llmPollInterval); llmPollInterval = null; }
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopLlmPolling(); else startLlmPolling();
+    });
+    startLlmPolling();
+
+    // --- Conversation Management ---
+    function toggleConvSidebar() {
+        document.getElementById('conv-sidebar').classList.toggle('open');
+    }
+
+    async function loadConversations() {
+        try {
+            const resp = await fetch('/api/chat/conversations');
+            const data = await resp.json();
+            const list = document.getElementById('conv-list');
+
+            list.innerHTML = data.map(c => {
+                const age = timeAgo(c.updated_at);
+                const cls = (c.id === conversationId ? ' active' : '') + (!c.is_active ? ' closed' : '');
+                return `<li class="conv-item${cls}" onclick="loadConversation('${c.id}')">
+                    <span class="title">${escHtml(c.title)}</span>
+                    <span class="meta">${age}</span>
+                </li>`;
+            }).join('') || '<li style="padding:1rem; color:var(--text-muted); font-size:0.8rem;">No conversations yet</li>';
+        } catch {}
+    }
+
+    async function loadConversation(id) {
+        try {
+            const resp = await fetch(`/api/chat/conversations/${id}`);
+            const data = await resp.json();
+            conversationId = data.id;
+
+            // Set mode
+            if (data.mode !== currentMode) setMode(data.mode);
+
+            // Clear and render messages
+            const messagesEl = document.getElementById('messages');
+            messagesEl.innerHTML = '';
+
+            for (const msg of data.messages) {
+                if (msg.role === 'user' || msg.role === 'assistant') {
+                    if (msg.content) addMessage(msg.role, msg.content);
+                }
+            }
+
+            // Update sidebar active state
+            document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+            const activeEl = document.querySelector(`.conv-item[onclick*="${id}"]`);
+            if (activeEl) activeEl.classList.add('active');
+
+            // Close sidebar on mobile
+            document.getElementById('conv-sidebar').classList.remove('open');
+        } catch (err) {
+            toast('Failed to load conversation', 'error');
+        }
+    }
+
+    function newConversation() {
+        conversationId = null;
+        const messagesEl = document.getElementById('messages');
+        messagesEl.innerHTML = `<div class="chat-welcome" id="welcome">
             <div style="text-align:center; padding:3rem 0;">
                 <h3 style="margin-bottom:0.5rem;">What would you like to do?</h3>
                 <p class="text-muted text-sm">Try: "Post an announcement that raids are Friday at 8pm"</p>
@@ -40,50 +254,30 @@
                     <button class="btn btn-sm" onclick="suggest('Show me all announcements')">List content</button>
                 </div>
             </div>
-        </div>
-    </div>
+        </div>`;
+        hidePending();
+        loadConversations();
+        document.getElementById('conv-sidebar').classList.remove('open');
+    }
 
-    <!-- Pending changes approval area -->
-    <div id="pending-area" class="hidden" style="border-top:1px solid var(--border); padding:1rem; background:var(--bg-surface);">
-        <div class="flex items-center justify-between mb-2">
-            <strong>Pending Change</strong>
-            <div class="flex gap-2" style="gap:0.5rem;">
-                <button class="btn btn-success btn-sm" onclick="approveChange()">Approve</button>
-                <button class="btn btn-danger btn-sm" onclick="rejectChange()">Reject</button>
-            </div>
-        </div>
-        <div id="pending-preview" class="text-sm mb-2"></div>
-        <div id="pending-diff" class="diff" style="max-height:30vh; overflow-y:auto;"></div>
-    </div>
+    function timeAgo(iso) {
+        if (!iso) return '';
+        const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+        if (diff < 60) return 'now';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+        return Math.floor(diff / 86400) + 'd';
+    }
 
-    <!-- Input -->
-    <div style="border-top:1px solid var(--border); padding:0.75rem 1rem; background:var(--bg-surface);">
-        <form id="chat-form" style="display:flex; gap:0.5rem;">
-            <input type="text" id="chat-input" placeholder="Describe what you want to change..." style="flex:1; font-size:16px;" autofocus>
-            <button type="submit" class="btn btn-primary" id="send-btn">Send</button>
-        </form>
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    let conversation = [];
-    let currentPendingChange = null;
-    let currentMode = 'quick';
-
+    // --- Mode ---
     function setMode(mode) {
         currentMode = mode;
-        conversation = [];
         document.querySelectorAll('.mode-btn').forEach(btn => {
             const isActive = btn.dataset.mode === mode;
             btn.classList.toggle('active', isActive);
             btn.style.background = isActive ? (mode === 'super' ? 'var(--danger)' : 'var(--primary)') : 'var(--bg-elevated)';
             btn.style.color = isActive ? 'white' : 'var(--text-muted)';
         });
-        const label = document.getElementById('mode-label');
-        label.textContent = mode === 'super' ? 'Full structural control — pages, navigation, layout' : 'Announcements, events, members';
-        label.style.color = mode === 'super' ? 'var(--danger)' : '';
     }
 
     function suggest(text) {
@@ -91,6 +285,7 @@
         document.getElementById('chat-input').focus();
     }
 
+    // --- Messages ---
     function addMessage(role, content) {
         const welcome = document.getElementById('welcome');
         if (welcome) welcome.remove();
@@ -112,11 +307,10 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
+    // --- Pending Changes ---
     function showPending(change) {
         currentPendingChange = change;
-        const area = document.getElementById('pending-area');
-        area.classList.remove('hidden');
-
+        document.getElementById('pending-area').classList.remove('hidden');
         document.getElementById('pending-preview').textContent = change.preview || '';
         document.getElementById('pending-diff').innerHTML = formatDiff(change.diff || '');
     }
@@ -128,13 +322,11 @@
 
     async function approveChange() {
         if (!currentPendingChange) return;
-
         const resp = await fetch('/api/chat/approve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ change: currentPendingChange, conversation }),
+            body: JSON.stringify({ change: currentPendingChange, conversation_id: conversationId }),
         });
-
         const data = await resp.json();
         if (data.ok) {
             addMessage('system', `Approved: ${data.message}`);
@@ -148,17 +340,45 @@
 
     async function rejectChange() {
         if (!currentPendingChange) return;
-
         await fetch('/api/chat/reject', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ change: currentPendingChange }),
         });
-
         addMessage('system', 'Change rejected.');
         hidePending();
     }
 
+    // --- Image Upload ---
+    let pendingImage = null; // {url, base64, media_type}
+
+    async function handleImageSelect(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const resp = await fetch('/api/chat/upload-image', { method: 'POST', body: formData });
+            if (!resp.ok) { toast('Upload failed', 'error'); return; }
+            pendingImage = await resp.json();
+
+            document.getElementById('preview-thumb').src = pendingImage.url;
+            document.getElementById('preview-name').textContent = file.name;
+            document.getElementById('image-preview').style.display = 'block';
+        } catch (err) {
+            toast('Upload failed: ' + err.message, 'error');
+        }
+        input.value = '';
+    }
+
+    function clearImage() {
+        pendingImage = null;
+        document.getElementById('image-preview').style.display = 'none';
+    }
+
+    // --- Send ---
     document.getElementById('chat-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = document.getElementById('chat-input');
@@ -172,11 +392,35 @@
         sendBtn.disabled = true;
         sendBtn.textContent = '...';
 
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.id = 'thinking';
+        thinkingDiv.style.cssText = 'margin-bottom:1rem; display:flex;';
+        thinkingDiv.innerHTML = `<div style="padding:0.75rem 1rem; border-radius:12px; border-bottom-left-radius:4px; background:var(--bg-elevated); border:1px solid var(--border); font-size:0.875rem; color:var(--text-muted);">
+            <span class="dots">Thinking<span>.</span><span>.</span><span>.</span></span>
+        </div>`;
+        document.getElementById('messages').appendChild(thinkingDiv);
+        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+
+        // Build message with optional image
+        let msgPayload = message;
+        if (pendingImage) {
+            msgPayload = [
+                { type: 'text', text: message },
+                { type: 'image', base64: pendingImage.base64, media_type: pendingImage.media_type },
+            ];
+            // Show image in chat
+            const imgEl = document.createElement('div');
+            imgEl.style.cssText = 'margin-bottom:1rem; display:flex; justify-content:flex-end;';
+            imgEl.innerHTML = `<img src="${pendingImage.url}" style="max-width:200px; max-height:150px; border-radius:8px; border:1px solid var(--border);">`;
+            document.getElementById('messages').appendChild(imgEl);
+            clearImage();
+        }
+
         try {
             const resp = await fetch('/api/chat/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, conversation, mode: currentMode }),
+                body: JSON.stringify({ message: msgPayload, conversation_id: conversationId, mode: currentMode }),
             });
 
             const data = await resp.json();
@@ -189,15 +433,62 @@
                 showPending(data.pending_changes[0]);
             }
 
-            if (data.conversation) {
-                conversation = data.conversation;
+            if (data.conversation_id) {
+                conversationId = data.conversation_id;
+                loadConversations();
             }
         } catch (err) {
             addMessage('system', `Error: ${err.message}`);
         } finally {
+            const t = document.getElementById('thinking');
+            if (t) t.remove();
             sendBtn.disabled = false;
             sendBtn.textContent = 'Send';
         }
     });
+
+    // --- Edit Lock ---
+    async function checkEditLock() {
+        try {
+            const resp = await fetch('/api/chat/edit-lock');
+            const data = await resp.json();
+            const lockBar = document.getElementById('lock-bar');
+
+            if (data.locked && !data.is_me) {
+                lockBar.innerHTML = `<span>Locked by <strong>${escHtml(data.display_name)}</strong> (${Math.floor(data.seconds_held / 60)}m)</span>
+                    {% if user_role == "owner" %}<button class="btn btn-danger btn-sm" onclick="killLock()" style="padding:0.25rem 0.5rem; font-size:0.7rem;">End session</button>{% endif %}`;
+                lockBar.style.display = 'flex';
+                document.getElementById('chat-input').disabled = true;
+                document.getElementById('send-btn').disabled = true;
+            } else {
+                lockBar.style.display = 'none';
+                document.getElementById('chat-input').disabled = false;
+                document.getElementById('send-btn').disabled = false;
+            }
+        } catch {}
+    }
+
+    async function killLock() {
+        if (!confirm('End this user\'s edit session? They may lose unsaved work.')) return;
+        await fetch('/api/chat/edit-lock/kill', { method: 'POST' });
+        toast('Edit session released');
+        checkEditLock();
+    }
+
+    async function releaseLock() {
+        await fetch('/api/chat/edit-lock/release', { method: 'POST' });
+    }
+
+    // Check lock on visibility change and periodically while visible
+    function startLockPolling() { checkEditLock(); }
+
+    // Release lock when leaving page
+    window.addEventListener('beforeunload', () => {
+        navigator.sendBeacon('/api/chat/edit-lock/release');
+    });
+
+    // --- Init ---
+    loadConversations();
+    checkEditLock();
 </script>
 {% endblock %}

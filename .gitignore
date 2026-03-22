@@ -17,8 +17,12 @@ venv/
 # Generated static site
 output/
 
-# Content repo (managed separately)
+# Content repo (managed separately via git)
 content-repo/
+
+# User uploads
+convocation/static/uploads/
+convocation/static/screenshots/
 
 # Push notification keys
 vapid_private.pem

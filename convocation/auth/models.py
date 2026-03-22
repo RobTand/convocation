@@ -64,6 +64,25 @@ class AuditLog(Base):
     user: Mapped[User] = relationship(back_populates="audit_entries")
 
 
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False, default="New conversation")
+    messages: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON array
+    mode: Mapped[str] = mapped_column(String(10), nullable=False, default="quick")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped[User] = relationship()
+
+
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
 
